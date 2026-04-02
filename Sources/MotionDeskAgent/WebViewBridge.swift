@@ -79,18 +79,6 @@ class WebViewBridge: NSObject, WKScriptMessageHandler {
         case "stateChange":
             if let state = payload["state"] as? String {
                 debugLog("[State] → \(state)")
-                if let window = webView?.window as? DesktopWindow {
-                    let interactive = ["transition-in", "listening", "thinking", "speaking"].contains(state)
-                    if interactive {
-                        window.enterInteractiveMode()
-                    } else if state == "transition-out" {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-                            window.exitInteractiveMode()
-                        }
-                    } else if state == "idle" {
-                        window.exitInteractiveMode()
-                    }
-                }
             }
 
         case "pickVideoFile":

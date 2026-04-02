@@ -3,6 +3,7 @@ import WebKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var desktopWindow: DesktopWindow!
+    var chatPanel: ChatPanel?
     var settingsWindow: SettingsWindow?
     var statusItem: NSStatusItem!
     var hotkeyManager: HotkeyManager!
@@ -18,8 +19,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         chatHistoryManager = ChatHistoryManager()
         claudeManager = ClaudeCLIManager()
 
+        // 从配置读取 claude 路径
+        let config = configManager.load()
+        if let path = config["claudePath"] as? String, !path.isEmpty {
+            claudeManager.setClaudePath(path)
+        }
+
         debugLog("[App] Managers initialized")
 
+        // 桌面窗口（角色视频）
         desktopWindow = DesktopWindow(config: configManager)
         desktopWindow.bridge = WebViewBridge(
             webView: desktopWindow.webView,
@@ -27,19 +35,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             configManager: configManager,
             chatHistoryManager: chatHistoryManager
         )
-
         desktopWindow.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
 
-        debugLog("[App] Window visible: \(desktopWindow.isVisible), level: \(desktopWindow.level.rawValue)")
-
+        // 全局快捷键：双击 ⌘ 切换聊天面板
         hotkeyManager = HotkeyManager { [weak self] in
-            self?.desktopWindow.bridge?.sendToJS(type: "hotkeyActivate", payload: [:])
+            self?.toggleChat()
         }
         hotkeyManager.start()
 
         setupStatusBar()
         debugLog("[App] Startup complete")
+    }
+
+    /// 切换聊天面板显示/隐藏
+    private func toggleChat() {
+        if let panel = chatPanel, panel.isVisible {
+            // 隐藏聊天面板
+            panel.orderOut(nil)
+            // 通知桌面窗口状态变化
+            desktopWindow.bridge?.sendToJS(type: "stateChange", payload: ["state": "idle"])
+        } else {
+            // 显示聊天面板
+            if chatPanel == nil {
+                chatPanel = ChatPanel(claudeManager: claudeManager, chatHistoryManager: chatHistoryManager)
+                chatPanel?.onDeactivate = { [weak self] in
+                    self?.toggleChat()
+                }
+            }
+            // 通知桌面窗口进入交互状态（播放 transition-in 等）
+            desktopWindow.bridge?.sendToJS(type: "hotkeyActivate", payload: [:])
+
+            chatPanel?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -82,7 +110,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func newSession() {
         claudeManager.resetSession()
-        desktopWindow.bridge?.sendToJS(type: "claudeDone", payload: [:])
+        chatPanel?.orderOut(nil)
+        chatPanel = nil  // 下次打开重新创建（刷新历史）
     }
 
     @objc private func quitApp() {

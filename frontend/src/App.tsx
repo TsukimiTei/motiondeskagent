@@ -78,21 +78,26 @@ export function App() {
       dispatch('HOTKEY_DEACTIVATE');
     });
 
-    // 来自设置窗口的布局更新
     const unsubLayout = bridge.on('updateLayout', (payload: any) => {
       setLayout((prev) => ({ ...prev, ...payload }));
     });
 
-    // 来自设置窗口的显示参数更新
     const unsubDisplay = bridge.on('updateDisplay', (payload: any) => {
       if (payload.chromakeyThreshold !== undefined || payload.chromakeySmoothness !== undefined) {
         updateConfig(payload);
       }
     });
 
+    // 交互模式切换背景透明度
+    const unsubTransparent = bridge.on('setTransparent', (payload: { transparent: boolean }) => {
+      document.body.style.background = payload.transparent ? 'transparent' : '#000';
+      document.documentElement.style.background = payload.transparent ? 'transparent' : '#000';
+    });
+
     return () => {
       unsubActivate();
       unsubDeactivate();
+      unsubTransparent();
       unsubLayout();
       unsubDisplay();
     };
