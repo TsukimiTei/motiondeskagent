@@ -1,0 +1,45 @@
+{
+  "states": {
+    "idle": {
+      "label": "待机",
+      "loop": true,
+      "clips": []
+    },
+    "transition-in": {
+      "label": "唤起过渡",
+      "loop": false,
+      "clips": []
+    },
+    "listening": {
+      "label": "等待输入",
+      "loop": true,
+      "clips": []
+    },
+    "thinking": {
+      "label": "思考中",
+      "loop": true,
+      "clips": []
+    },
+    "speaking": {
+      "label": "回复中",
+      "loop": true,
+      "clips": []
+    },
+    "transition-out": {
+      "label": "收起过渡",
+      "loop": false,
+      "clips": []
+    }
+  },
+  "transitions": {
+    "idle": ["transition-in"],
+    "transition-in": ["listening"],
+    "listening": ["thinking", "transition-out"],
+    "thinking": ["speaking"],
+    "speaking": ["listening"],
+    "transition-out": ["idle"]
+  },
+  "chromakeyThreshold": 0.3,
+  "chromakeySmoothness": 0.1,
+  "hotkey": "double-cmd"
+}

@@ -1,0 +1,30 @@
+# Build outputs
+build/
+.build/
+frontend/dist/
+frontend/node_modules/
+
+# macOS
+.DS_Store
+*.swp
+
+# IDE
+.vscode/
+.idea/
+
+# Swift
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+
+# Environment
+.env
+
+# Video clips (local only)
+clips/**/*.mp4
+clips/**/*.mov
+clips/**/*.webm
+clips/**/*.m4v
+
+# Debug logs
+motiondesk_debug.log
