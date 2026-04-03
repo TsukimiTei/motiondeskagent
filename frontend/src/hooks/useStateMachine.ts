@@ -17,7 +17,7 @@ export function useStateMachine() {
     return stateMachine.dispatch(event);
   }, []);
 
-  const isInteractive = ['listening', 'thinking', 'speaking'].includes(state);
+  const isInteractive = ['listening', 'thinking', 'speaking', 'tool-executing'].includes(state);
 
   return { state, dispatch, isInteractive };
 }

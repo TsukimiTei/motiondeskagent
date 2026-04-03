@@ -723,3 +723,130 @@ body {
   max-height: 60%;
   border-radius: var(--radius);
 }
+
+/* ─── 工具活动指示器 ─── */
+.tool-activity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  animation: bubbleIn 0.2s ease;
+  color: var(--text-secondary);
+  background: rgba(25, 30, 40, 0.6);
+  border: 1px solid rgba(100, 160, 255, 0.1);
+}
+
+.tool-activity.active {
+  border-color: rgba(100, 160, 255, 0.25);
+  color: rgba(180, 200, 230, 0.9);
+}
+
+.tool-activity.completed {
+  opacity: 0.6;
+  border-color: rgba(80, 100, 130, 0.15);
+}
+
+.tool-activity-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.tool-activity.active .tool-activity-icon {
+  animation: toolPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes toolPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.tool-activity-name {
+  font-weight: 500;
+  color: rgba(130, 180, 255, 0.9);
+}
+
+.tool-activity-elapsed {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: rgba(120, 140, 170, 0.6);
+}
+
+.tool-activity-summary {
+  color: var(--text-dim);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+.tool-activity-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(100, 160, 255, 0.2);
+  border-top-color: rgba(100, 160, 255, 0.8);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── 系统消息 ─── */
+.chat-bubble.system {
+  background: rgba(30, 35, 45, 0.6);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  border: 1px solid rgba(100, 120, 150, 0.2);
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+/* ─── 命令提示下拉 ─── */
+.command-suggestions {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 22, 30, 0.95);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  min-width: 240px;
+  backdrop-filter: blur(16px);
+  animation: fadeIn 0.15s ease;
+  z-index: 20;
+}
+
+.command-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.command-item:hover,
+.command-item.selected {
+  background: rgba(100, 140, 255, 0.12);
+}
+
+.command-item-name {
+  color: var(--accent);
+  font-family: 'SF Mono', monospace;
+  font-weight: 500;
+}
+
+.command-item-desc {
+  color: var(--text-dim);
+  font-size: 11px;
+}

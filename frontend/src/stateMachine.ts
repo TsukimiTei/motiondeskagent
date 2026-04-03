@@ -3,6 +3,7 @@
  *
  * 状态流转：
  * idle → transition-in → listening ⇄ thinking → speaking → listening
+ *                         thinking → tool-executing → thinking
  *                         listening → transition-out → idle
  */
 
@@ -11,6 +12,7 @@ export type CharacterState =
   | 'transition-in'
   | 'listening'
   | 'thinking'
+  | 'tool-executing'
   | 'speaking'
   | 'transition-out';
 
@@ -19,6 +21,8 @@ export type StateTransitionEvent =
   | 'TRANSITION_DONE'    // 过渡视频播完
   | 'USER_SEND'          // 用户发送消息
   | 'FIRST_TOKEN'        // 收到 Claude 首个 token
+  | 'TOOL_START'         // Claude 开始使用工具
+  | 'TOOL_DONE'          // 工具执行完成
   | 'REPLY_DONE'         // 回复完毕
   | 'HOTKEY_DEACTIVATE'  // 用户按快捷键收起 / Esc
   | 'RESET';             // 重置到 idle
@@ -36,10 +40,17 @@ const transitions: Record<CharacterState, Partial<Record<StateTransitionEvent, C
   },
   'thinking': {
     'FIRST_TOKEN': 'speaking',
+    'TOOL_START': 'tool-executing',
+    'HOTKEY_DEACTIVATE': 'transition-out',
+  },
+  'tool-executing': {
+    'TOOL_DONE': 'thinking',
+    'FIRST_TOKEN': 'speaking',
     'HOTKEY_DEACTIVATE': 'transition-out',
   },
   'speaking': {
     'REPLY_DONE': 'listening',
+    'TOOL_START': 'tool-executing',
     'HOTKEY_DEACTIVATE': 'transition-out',
   },
   'transition-out': {
@@ -75,7 +86,10 @@ export class StateMachine {
       return true;
     }
 
-    console.warn(`[StateMachine] Invalid transition: ${this.state} + ${event}`);
+    // 不警告 TOOL_START/TOOL_DONE 在非预期状态的调用（可能是时序问题）
+    if (event !== 'TOOL_START' && event !== 'TOOL_DONE') {
+      console.warn(`[StateMachine] Invalid transition: ${this.state} + ${event}`);
+    }
     return false;
   }
 
@@ -89,7 +103,7 @@ export class StateMachine {
 
   /** 判断当前是否处于交互模式 */
   isInteractive(): boolean {
-    return ['listening', 'thinking', 'speaking'].includes(this.state);
+    return ['listening', 'thinking', 'speaking', 'tool-executing'].includes(this.state);
   }
 }
 

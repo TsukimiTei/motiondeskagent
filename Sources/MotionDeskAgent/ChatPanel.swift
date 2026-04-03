@@ -47,21 +47,48 @@ class ChatPanel: NSPanel, WKScriptMessageHandler {
 
         webView.configuration.userContentController.add(self, name: "chat")
 
-        // Claude 回调
-        claudeManager.onToken = { [weak self] text in
-            self?.callJS("onClaudeReplace('\(Self.escapeJS(text))')")
-        }
-        claudeManager.onDone = { [weak self] in
-            self?.callJS("onClaudeDone()")
-        }
-        claudeManager.onError = { [weak self] err in
-            self?.callJS("onClaudeError('\(Self.escapeJS(err))')")
+        // Claude 统一事件回调
+        claudeManager.onEvent = { [weak self] event in
+            self?.handleClaudeEvent(event)
         }
 
         loadChatHTML()
     }
 
     override var canBecomeKey: Bool { true }
+
+    // MARK: - Claude 事件处理
+
+    private func handleClaudeEvent(_ event: ClaudeStreamEvent) {
+        switch event {
+        case .textComplete(let text):
+            callJS("onClaudeReplace('\(Self.escapeJS(text))')")
+
+        case .textDelta(let text):
+            callJS("onClaudeTextDelta('\(Self.escapeJS(text))')")
+
+        case .toolUseStart(_, let name, _):
+            callJS("onClaudeToolStart('\(Self.escapeJS(name))')")
+
+        case .toolProgress(let name, let elapsed):
+            callJS("onClaudeToolProgress('\(Self.escapeJS(name))', \(elapsed))")
+
+        case .toolResult(let name, let summary):
+            callJS("onClaudeToolResult('\(Self.escapeJS(name))', '\(Self.escapeJS(summary))')")
+
+        case .done(_, _, _):
+            callJS("onClaudeDone()")
+
+        case .error(let message, _):
+            callJS("onClaudeError('\(Self.escapeJS(message))')")
+
+        case .thinking(let text):
+            callJS("onClaudeThinking('\(Self.escapeJS(text))')")
+
+        case .sessionInit(_, _):
+            break
+        }
+    }
 
     // MARK: - JS → Swift
 
@@ -139,6 +166,17 @@ class ChatPanel: NSPanel, WKScriptMessageHandler {
                          border-bottom-left-radius: 4px; border: 1px solid rgba(80,80,100,0.3); }
         .msg.error { background: rgba(60,20,20,0.85); border-color: rgba(255,80,80,0.3); }
 
+        /* 工具活动指示器 */
+        .msg.tool { background: rgba(25,25,35,0.7); align-self: flex-start;
+                    border: 1px solid rgba(100,180,255,0.15); font-size: 12px;
+                    padding: 6px 12px; color: rgba(150,170,200,0.9); }
+        .msg.tool .tool-icon { display: inline-block; margin-right: 6px; }
+        .msg.tool .tool-name { color: rgba(100,180,255,0.9); font-weight: 500; }
+        .msg.tool .tool-elapsed { color: rgba(120,130,150,0.7); font-size: 11px; margin-left: 8px; }
+        .msg.tool.active { border-color: rgba(100,180,255,0.3); }
+        .msg.tool.active .tool-icon { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 50% { opacity: 0.4; } }
+
         .msg pre { background: rgba(0,0,0,0.4); border-radius: 6px; padding: 8px;
                    margin: 6px 0; overflow-x: auto; font-size: 12px;
                    font-family: 'SF Mono', 'Fira Code', monospace; }
@@ -203,6 +241,7 @@ class ChatPanel: NSPanel, WKScriptMessageHandler {
         let showAll = false;
         let streaming = false;
         let streamText = '';
+        let activeTools = [];
 
         renderMessages();
         setTimeout(() => inputEl.focus(), 100);
@@ -221,6 +260,7 @@ class ChatPanel: NSPanel, WKScriptMessageHandler {
                 inputEl.innerText = '';
                 streamText = '';
                 streaming = false;
+                activeTools = [];
                 renderMessages();
                 send('sendMessage', { content: text });
                 hintEl.textContent = '思考中...';
@@ -238,21 +278,40 @@ class ChatPanel: NSPanel, WKScriptMessageHandler {
             document.getElementById('historyBtn').textContent = showAll ? '只看最近' : '查看历史';
             renderMessages();
         }
-        function clearAll() { allMessages = []; streamText = ''; renderMessages(); send('clearHistory', {}); }
+        function clearAll() { allMessages = []; streamText = ''; activeTools = []; renderMessages(); send('clearHistory', {}); }
 
         // 渲染消息
         function renderMessages() {
             const msgs = showAll ? allMessages : getLastRound();
             let html = '';
             msgs.forEach(m => {
-                html += '<div class="msg ' + m.role + '">' + renderMarkdown(m.content) + '</div>';
+                if (m.role === 'tool') {
+                    html += '<div class="msg tool' + (m.active ? ' active' : '') + '">' +
+                            '<span class="tool-icon">⚙</span>' +
+                            '<span class="tool-name">' + escapeHtml(m.toolName || '') + '</span>' +
+                            (m.elapsed ? '<span class="tool-elapsed">' + m.elapsed.toFixed(1) + 's</span>' : '') +
+                            (m.summary ? ' — ' + escapeHtml(m.summary) : '') +
+                            '</div>';
+                } else {
+                    html += '<div class="msg ' + m.role + '">' + renderMarkdown(m.content) + '</div>';
+                }
             });
             if (streaming && streamText) {
                 html += '<div class="msg assistant">' + renderMarkdown(streamText) +
                         '<span class="cursor">▋</span></div>';
             }
+            // 活动工具指示
+            activeTools.forEach(t => {
+                html += '<div class="msg tool active"><span class="tool-icon">⚙</span>' +
+                        '<span class="tool-name">' + escapeHtml(t.name) + '</span>' +
+                        '<span class="tool-elapsed">' + t.elapsed.toFixed(1) + 's</span></div>';
+            });
             messagesEl.innerHTML = html;
             messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        function escapeHtml(s) {
+            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
 
         function getLastRound() {
@@ -291,12 +350,36 @@ class ChatPanel: NSPanel, WKScriptMessageHandler {
             hintEl.textContent = 'Enter 发送 · Esc 退出';
             renderMessages();
         }
+        function onClaudeTextDelta(text) {
+            streaming = true;
+            streamText += text;
+            renderMessages();
+        }
+        function onClaudeToolStart(name) {
+            activeTools.push({ name: name, elapsed: 0 });
+            renderMessages();
+        }
+        function onClaudeToolProgress(name, elapsed) {
+            const tool = activeTools.find(t => t.name === name);
+            if (tool) tool.elapsed = elapsed;
+            renderMessages();
+        }
+        function onClaudeToolResult(name, summary) {
+            const idx = activeTools.findIndex(t => t.name === name);
+            if (idx >= 0) {
+                const tool = activeTools.splice(idx, 1)[0];
+                allMessages.push({ role: 'tool', toolName: name, summary: summary,
+                                   elapsed: tool.elapsed, timestamp: Date.now() });
+            }
+            renderMessages();
+        }
         function onClaudeDone() {
             if (streamText) {
                 allMessages.push({ role: 'assistant', content: streamText, timestamp: Date.now() });
             }
             streaming = false;
             streamText = '';
+            activeTools = [];
             hintEl.textContent = 'Enter 发送 · Esc 退出';
             renderMessages();
             inputEl.focus();
@@ -305,8 +388,13 @@ class ChatPanel: NSPanel, WKScriptMessageHandler {
             allMessages.push({ role: 'error', content: '⚠️ ' + err, timestamp: Date.now() });
             streaming = false;
             streamText = '';
+            activeTools = [];
             hintEl.textContent = 'Enter 发送 · Esc 退出';
             renderMessages();
+        }
+        function onClaudeThinking(text) {
+            // 思考过程可以显示为淡色提示，暂存不显示
+            hintEl.textContent = '思考中...';
         }
         </script>
         </body></html>

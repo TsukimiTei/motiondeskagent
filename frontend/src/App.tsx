@@ -155,7 +155,7 @@ export function App() {
         />
         <InputBox
           onSend={sendMessage}
-          disabled={state === 'thinking' || isStreaming || state === 'transition-in'}
+          disabled={state === 'thinking' || state === 'tool-executing' || isStreaming || state === 'transition-in'}
           visible={isInteractive || state === 'transition-in'}
         />
       </div>
